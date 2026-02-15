@@ -17,11 +17,13 @@ export default async function handler(req, res) {
   }
 
   try {
-    const { clientName, clientEmail, clientPhone, date, slotName, slotTime } = req.body;
+    const { clientName, clientEmail, clientPhone, date, slotName, slotTime, cancelToken, siteUrl } = req.body;
 
     if (!clientEmail) {
       return res.status(200).json({ success: true, message: 'No email provided, skipping' });
     }
+
+    const cancelUrl = `${siteUrl || 'https://get-fit-with-murali.vercel.app'}/cancel/${cancelToken}`;
 
     // Send confirmation to client
     const { data, error } = await resend.emails.send({
@@ -67,10 +69,12 @@ export default async function handler(req, res) {
               </p>
 
               <div style="border-top: 1px solid #2a2a2a; padding-top: 20px; margin-top: 20px;">
-                <p style="color: #666666; font-size: 12px; margin: 0;">
-                  Need to cancel? Contact Murali directly.<br>
-                  This is an automated confirmation email.
+                <p style="color: #666666; font-size: 12px; margin: 0 0 16px 0;">
+                  Can't make it? Cancel your booking below:
                 </p>
+                <a href="${cancelUrl}" style="display: inline-block; background: transparent; border: 1px solid #666666; color: #a0a0a0; padding: 10px 24px; border-radius: 4px; text-decoration: none; font-size: 12px; text-transform: uppercase; letter-spacing: 1px;">
+                  Cancel Booking
+                </a>
               </div>
 
             </div>

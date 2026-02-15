@@ -114,7 +114,7 @@ export async function isSlotBlocked(bookingDate, slotId) {
 }
 
 // Send confirmation email
-async function sendConfirmationEmail(clientName, clientEmail, clientPhone, date, slotId) {
+async function sendConfirmationEmail(clientName, clientEmail, clientPhone, date, slotId, cancelToken) {
   if (!clientEmail) return
 
   const slot = SLOTS.find(s => s.id === slotId)
@@ -130,7 +130,9 @@ async function sendConfirmationEmail(clientName, clientEmail, clientPhone, date,
         clientPhone,
         date: formattedDate,
         slotName: slot?.name || slotId,
-        slotTime: slot?.time || ''
+        slotTime: slot?.time || '',
+        cancelToken,
+        siteUrl: window.location.origin
       })
     })
   } catch (err) {
@@ -183,9 +185,10 @@ export async function createBooking(bookingDate, slotId, clientName, clientPhone
   }
 
   // Send confirmation email (don't wait for it)
-  sendConfirmationEmail(clientName, clientEmail, clientPhone, bookingDate, slotId)
+  const booking = data[0]
+  sendConfirmationEmail(clientName, clientEmail, clientPhone, bookingDate, slotId, booking.cancel_token)
 
-  return { success: true, data: data[0] }
+  return { success: true, data: booking }
 }
 
 // Delete a booking
