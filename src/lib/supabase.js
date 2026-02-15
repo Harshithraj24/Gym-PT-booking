@@ -113,6 +113,31 @@ export async function isSlotBlocked(bookingDate, slotId) {
   return blocked.some(b => b.slot_id === null || b.slot_id === slotId)
 }
 
+// Send confirmation email
+async function sendConfirmationEmail(clientName, clientEmail, clientPhone, date, slotId) {
+  if (!clientEmail) return
+
+  const slot = SLOTS.find(s => s.id === slotId)
+  const formattedDate = formatDate(date)
+
+  try {
+    await fetch('/api/send-confirmation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        clientName,
+        clientEmail,
+        clientPhone,
+        date: formattedDate,
+        slotName: slot?.name || slotId,
+        slotTime: slot?.time || ''
+      })
+    })
+  } catch (err) {
+    console.error('Failed to send confirmation email:', err)
+  }
+}
+
 // Create a booking
 export async function createBooking(bookingDate, slotId, clientName, clientPhone, clientEmail) {
   if (!supabase) {
@@ -156,6 +181,9 @@ export async function createBooking(bookingDate, slotId, clientName, clientPhone
     console.error('Error creating booking:', error)
     return { success: false, error: error.message }
   }
+
+  // Send confirmation email (don't wait for it)
+  sendConfirmationEmail(clientName, clientEmail, clientPhone, bookingDate, slotId)
 
   return { success: true, data: data[0] }
 }
