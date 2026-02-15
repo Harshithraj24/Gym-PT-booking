@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { SLOTS, getAllBookings, deleteBooking, getAllBlockedSlots, blockSlot, unblockSlot, formatDate } from '../lib/supabase'
+import { getAllBookings, deleteBooking, getAllBlockedSlots, blockSlot, unblockSlot, formatDate, getAllSlots, createSlot, updateSlot, deleteSlot, toggleSlotActive, formatSlotTime } from '../lib/supabase'
 import AdminLogin from './AdminLogin'
 
 function TrainerAdmin() {
@@ -9,6 +9,7 @@ function TrainerAdmin() {
   const [activeTab, setActiveTab] = useState('bookings')
   const [bookings, setBookings] = useState([])
   const [blockedSlots, setBlockedSlots] = useState([])
+  const [slots, setSlots] = useState([])
   const [loading, setLoading] = useState(true)
   const [filterDate, setFilterDate] = useState('all')
   const [filterSlot, setFilterSlot] = useState('all')
@@ -19,6 +20,11 @@ function TrainerAdmin() {
   const [blockSlotId, setBlockSlotId] = useState('')
   const [blockReason, setBlockReason] = useState('')
   const [blocking, setBlocking] = useState(false)
+
+  // Slot management state
+  const [slotForm, setSlotForm] = useState({ name: '', timeStart: '', timeEnd: '', maxCapacity: 3 })
+  const [editingSlot, setEditingSlot] = useState(null)
+  const [savingSlot, setSavingSlot] = useState(false)
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -32,12 +38,14 @@ function TrainerAdmin() {
 
   async function loadData() {
     setLoading(true)
-    const [bookingsData, blockedData] = await Promise.all([
+    const [bookingsData, blockedData, slotsData] = await Promise.all([
       getAllBookings(),
-      getAllBlockedSlots()
+      getAllBlockedSlots(),
+      getAllSlots()
     ])
     setBookings(bookingsData)
     setBlockedSlots(blockedData)
+    setSlots(slotsData)
     setLoading(false)
   }
 
@@ -86,11 +94,95 @@ function TrainerAdmin() {
   }
 
   function getSlotName(slotId) {
-    return SLOTS.find(s => s.id === slotId)?.name || slotId
+    const slot = slots.find(s => s.id === slotId)
+    return slot?.name || slotId
   }
 
   function getSlotTime(slotId) {
-    return SLOTS.find(s => s.id === slotId)?.time || ''
+    const slot = slots.find(s => s.id === slotId)
+    return slot ? formatSlotTime(slot) : ''
+  }
+
+  // Slot management functions
+  async function handleAddSlot(e) {
+    e.preventDefault()
+    if (!slotForm.name || !slotForm.timeStart || !slotForm.timeEnd) {
+      alert('Please fill in slot name and times')
+      return
+    }
+
+    setSavingSlot(true)
+    const result = await createSlot(
+      slotForm.name,
+      slotForm.timeStart,
+      slotForm.timeEnd,
+      parseInt(slotForm.maxCapacity) || 3
+    )
+    setSavingSlot(false)
+
+    if (result.success) {
+      setSlots([...slots, result.data])
+      setSlotForm({ name: '', timeStart: '', timeEnd: '', maxCapacity: 3 })
+    } else {
+      alert('Failed to add slot: ' + result.error)
+    }
+  }
+
+  async function handleUpdateSlot(e) {
+    e.preventDefault()
+    if (!editingSlot) return
+
+    setSavingSlot(true)
+    const result = await updateSlot(editingSlot.id, {
+      name: slotForm.name,
+      time_start: slotForm.timeStart,
+      time_end: slotForm.timeEnd,
+      max_capacity: parseInt(slotForm.maxCapacity) || 3
+    })
+    setSavingSlot(false)
+
+    if (result.success) {
+      setSlots(slots.map(s => s.id === editingSlot.id ? result.data : s))
+      setEditingSlot(null)
+      setSlotForm({ name: '', timeStart: '', timeEnd: '', maxCapacity: 3 })
+    } else {
+      alert('Failed to update slot: ' + result.error)
+    }
+  }
+
+  async function handleDeleteSlot(id) {
+    if (!confirm('Are you sure you want to delete this slot? This cannot be undone.')) return
+
+    const result = await deleteSlot(id)
+    if (result.success) {
+      setSlots(slots.filter(s => s.id !== id))
+    } else {
+      alert('Failed to delete slot: ' + result.error)
+    }
+  }
+
+  async function handleToggleSlot(id, currentActive) {
+    const result = await toggleSlotActive(id, !currentActive)
+    if (result.success) {
+      setSlots(slots.map(s => s.id === id ? { ...s, is_active: !currentActive } : s))
+    } else {
+      alert('Failed to toggle slot: ' + result.error)
+    }
+  }
+
+  function startEditSlot(slot) {
+    setEditingSlot(slot)
+    setSlotForm({
+      name: slot.name,
+      timeStart: slot.time_start,
+      timeEnd: slot.time_end,
+      maxCapacity: slot.max_capacity
+    })
+  }
+
+  function cancelEditSlot() {
+    setEditingSlot(null)
+    setSlotForm({ name: '', timeStart: '', timeEnd: '', maxCapacity: 3 })
   }
 
   function formatDateTime(dateString) {
@@ -171,6 +263,12 @@ function TrainerAdmin() {
           >
             Block Slots
           </button>
+          <button
+            className={`admin-tab ${activeTab === 'slots' ? 'active' : ''}`}
+            onClick={() => setActiveTab('slots')}
+          >
+            Manage Slots
+          </button>
         </div>
 
         {activeTab === 'bookings' && (
@@ -208,7 +306,7 @@ function TrainerAdmin() {
               >
                 All Slots
               </button>
-              {SLOTS.map(slot => (
+              {slots.filter(s => s.is_active).map(slot => (
                 <button
                   key={slot.id}
                   className={`filter-btn ${filterSlot === slot.id ? 'active' : ''}`}
@@ -310,7 +408,7 @@ function TrainerAdmin() {
                     <label>Slot (optional)</label>
                     <select value={blockSlotId} onChange={e => setBlockSlotId(e.target.value)}>
                       <option value="">Entire Day</option>
-                      {SLOTS.map(slot => (
+                      {slots.filter(s => s.is_active).map(slot => (
                         <option key={slot.id} value={slot.id}>{slot.name}</option>
                       ))}
                     </select>
@@ -354,6 +452,115 @@ function TrainerAdmin() {
                     <button className="unblock-btn" onClick={() => handleUnblock(block.id)}>
                       Unblock
                     </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {activeTab === 'slots' && (
+          <>
+            <div className="block-form">
+              <h3 className="block-form-title">
+                {editingSlot ? 'Edit Slot' : 'Add New Slot'}
+              </h3>
+              <form onSubmit={editingSlot ? handleUpdateSlot : handleAddSlot}>
+                <div className="block-form-row">
+                  <div className="block-form-group">
+                    <label>Slot Name *</label>
+                    <input
+                      type="text"
+                      placeholder="e.g., Morning"
+                      value={slotForm.name}
+                      onChange={e => setSlotForm({ ...slotForm, name: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="block-form-group">
+                    <label>Start Time *</label>
+                    <input
+                      type="text"
+                      placeholder="e.g., 7:00 AM"
+                      value={slotForm.timeStart}
+                      onChange={e => setSlotForm({ ...slotForm, timeStart: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="block-form-group">
+                    <label>End Time *</label>
+                    <input
+                      type="text"
+                      placeholder="e.g., 8:30 AM"
+                      value={slotForm.timeEnd}
+                      onChange={e => setSlotForm({ ...slotForm, timeEnd: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="block-form-group">
+                    <label>Max Capacity</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="20"
+                      value={slotForm.maxCapacity}
+                      onChange={e => setSlotForm({ ...slotForm, maxCapacity: e.target.value })}
+                    />
+                  </div>
+                  <button type="submit" className="block-form-btn" disabled={savingSlot}>
+                    {savingSlot ? 'Saving...' : editingSlot ? 'Update' : 'Add Slot'}
+                  </button>
+                  {editingSlot && (
+                    <button type="button" className="unblock-btn" onClick={cancelEditSlot} style={{ marginLeft: '8px' }}>
+                      Cancel
+                    </button>
+                  )}
+                </div>
+              </form>
+            </div>
+
+            <h3 style={{ fontFamily: 'Oswald', marginBottom: '16px', textTransform: 'uppercase' }}>
+              Current Slots
+            </h3>
+
+            {slots.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-icon">&#128337;</div>
+                <p className="empty-text">No slots configured</p>
+              </div>
+            ) : (
+              <div className="slots-manage-list">
+                {slots.map(slot => (
+                  <div key={slot.id} className={`slot-manage-item ${!slot.is_active ? 'inactive' : ''}`}>
+                    <div className="slot-manage-info">
+                      <span className="slot-manage-name">{slot.name}</span>
+                      <span className="slot-manage-time">{formatSlotTime(slot)}</span>
+                      <span className="slot-manage-capacity">Max {slot.max_capacity} people</span>
+                      {!slot.is_active && <span className="slot-manage-inactive">Inactive</span>}
+                    </div>
+                    <div className="slot-manage-actions">
+                      <button
+                        className="edit-btn"
+                        onClick={() => startEditSlot(slot)}
+                        title="Edit slot"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className={slot.is_active ? 'disable-btn' : 'enable-btn'}
+                        onClick={() => handleToggleSlot(slot.id, slot.is_active)}
+                        title={slot.is_active ? 'Disable slot' : 'Enable slot'}
+                      >
+                        {slot.is_active ? 'Disable' : 'Enable'}
+                      </button>
+                      <button
+                        className="delete-btn"
+                        onClick={() => handleDeleteSlot(slot.id)}
+                        title="Delete slot"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

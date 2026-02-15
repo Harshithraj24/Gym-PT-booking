@@ -11,12 +11,20 @@ export const supabase = supabaseUrl && supabaseAnonKey
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null
 
-export const SLOTS = [
-  { id: 'early_morning', name: 'Early Morning', time: '5:30 AM - 7:00 AM' },
-  { id: 'morning', name: 'Morning', time: '7:00 AM - 8:30 AM' },
-  { id: 'evening', name: 'Evening', time: '5:00 PM - 6:30 PM' },
-  { id: 'late_evening', name: 'Late Evening', time: '7:00 PM - 8:30 PM' },
+// Default slots (fallback if database is empty)
+export const DEFAULT_SLOTS = [
+  { id: 'early_morning', name: 'Early Morning', time_start: '5:30 AM', time_end: '7:00 AM', max_capacity: 3 },
+  { id: 'morning', name: 'Morning', time_start: '7:00 AM', time_end: '8:30 AM', max_capacity: 3 },
+  { id: 'evening', name: 'Evening', time_start: '5:00 PM', time_end: '6:30 PM', max_capacity: 3 },
+  { id: 'late_evening', name: 'Late Evening', time_start: '7:00 PM', time_end: '8:30 PM', max_capacity: 3 },
 ]
+
+// Legacy export for backwards compatibility
+export const SLOTS = DEFAULT_SLOTS.map(s => ({
+  id: s.id,
+  name: s.name,
+  time: `${s.time_start} - ${s.time_end}`
+}))
 
 export const MAX_BOOKINGS_PER_SLOT = 3
 export const BOOKING_WINDOW_DAYS = 14
@@ -69,7 +77,7 @@ export async function getBookingsForDate(bookingDate) {
 }
 
 // Get slot counts for a specific date
-export async function getSlotCounts(bookingDate) {
+export async function getSlotCounts(bookingDate, slots = null) {
   if (!supabase) return {}
 
   const { data, error } = await supabase
@@ -82,10 +90,13 @@ export async function getSlotCounts(bookingDate) {
     return {}
   }
 
+  // Count bookings per slot_id
   const counts = {}
-  SLOTS.forEach(slot => {
-    counts[slot.id] = data?.filter(b => b.slot_id === slot.id).length || 0
-  })
+  if (data) {
+    data.forEach(b => {
+      counts[b.slot_id] = (counts[b.slot_id] || 0) + 1
+    })
+  }
 
   return counts
 }
@@ -117,7 +128,9 @@ export async function isSlotBlocked(bookingDate, slotId) {
 async function sendConfirmationEmail(clientName, clientEmail, clientPhone, date, slotId, cancelToken) {
   if (!clientEmail) return
 
-  const slot = SLOTS.find(s => s.id === slotId)
+  // Fetch slot from database
+  const slots = await getSlots()
+  const slot = slots.find(s => s.id === slotId)
   const formattedDate = formatDate(date)
 
   try {
@@ -130,7 +143,7 @@ async function sendConfirmationEmail(clientName, clientEmail, clientPhone, date,
         clientPhone,
         date: formattedDate,
         slotName: slot?.name || slotId,
-        slotTime: slot?.time || '',
+        slotTime: slot ? formatSlotTime(slot) : '',
         cancelToken,
         siteUrl: window.location.origin
       })
@@ -324,4 +337,144 @@ export async function getBookingsInRange(startDate, endDate) {
   }
 
   return data || []
+}
+
+// ============ SLOT MANAGEMENT ============
+
+// Get all slots from database
+export async function getSlots() {
+  if (!supabase) return DEFAULT_SLOTS
+
+  const { data, error } = await supabase
+    .from('slots')
+    .select('*')
+    .eq('is_active', true)
+    .order('sort_order', { ascending: true })
+
+  if (error) {
+    console.error('Error fetching slots:', error)
+    return DEFAULT_SLOTS
+  }
+
+  return data && data.length > 0 ? data : DEFAULT_SLOTS
+}
+
+// Get all slots including inactive (admin)
+export async function getAllSlots() {
+  if (!supabase) return DEFAULT_SLOTS
+
+  const { data, error } = await supabase
+    .from('slots')
+    .select('*')
+    .order('sort_order', { ascending: true })
+
+  if (error) {
+    console.error('Error fetching all slots:', error)
+    return DEFAULT_SLOTS
+  }
+
+  return data || []
+}
+
+// Create a new slot
+export async function createSlot(name, timeStart, timeEnd, maxCapacity = 3) {
+  if (!supabase) {
+    return { success: false, error: 'Database not configured' }
+  }
+
+  // Get max sort_order
+  const { data: existing } = await supabase
+    .from('slots')
+    .select('sort_order')
+    .order('sort_order', { ascending: false })
+    .limit(1)
+
+  const nextOrder = existing && existing.length > 0 ? existing[0].sort_order + 1 : 1
+
+  const { data, error } = await supabase
+    .from('slots')
+    .insert([{
+      name,
+      time_start: timeStart,
+      time_end: timeEnd,
+      max_capacity: maxCapacity,
+      sort_order: nextOrder,
+      is_active: true
+    }])
+    .select()
+
+  if (error) {
+    console.error('Error creating slot:', error)
+    return { success: false, error: error.message }
+  }
+
+  return { success: true, data: data[0] }
+}
+
+// Update a slot
+export async function updateSlot(id, updates) {
+  if (!supabase) {
+    return { success: false, error: 'Database not configured' }
+  }
+
+  const { data, error } = await supabase
+    .from('slots')
+    .update(updates)
+    .eq('id', id)
+    .select()
+
+  if (error) {
+    console.error('Error updating slot:', error)
+    return { success: false, error: error.message }
+  }
+
+  return { success: true, data: data[0] }
+}
+
+// Delete a slot
+export async function deleteSlot(id) {
+  if (!supabase) {
+    return { success: false, error: 'Database not configured' }
+  }
+
+  const { error } = await supabase
+    .from('slots')
+    .delete()
+    .eq('id', id)
+
+  if (error) {
+    console.error('Error deleting slot:', error)
+    return { success: false, error: error.message }
+  }
+
+  return { success: true }
+}
+
+// Toggle slot active status
+export async function toggleSlotActive(id, isActive) {
+  return updateSlot(id, { is_active: isActive })
+}
+
+// Reorder slots
+export async function reorderSlots(slotIds) {
+  if (!supabase) {
+    return { success: false, error: 'Database not configured' }
+  }
+
+  const updates = slotIds.map((id, index) =>
+    supabase.from('slots').update({ sort_order: index + 1 }).eq('id', id)
+  )
+
+  try {
+    await Promise.all(updates)
+    return { success: true }
+  } catch (error) {
+    console.error('Error reordering slots:', error)
+    return { success: false, error: error.message }
+  }
+}
+
+// Helper to format slot time
+export function formatSlotTime(slot) {
+  return `${slot.time_start} - ${slot.time_end}`
 }

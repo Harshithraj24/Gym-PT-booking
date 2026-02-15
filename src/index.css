@@ -951,3 +951,145 @@ h1, h2, h3, h4, h5, h6 {
     width: 100%;
   }
 }
+
+/* Slot Management Styles */
+.slots-manage-list {
+  display: grid;
+  gap: 12px;
+}
+
+.slot-manage-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 16px 20px;
+  transition: all 0.3s ease;
+}
+
+.slot-manage-item:hover {
+  border-color: var(--accent-red);
+}
+
+.slot-manage-item.inactive {
+  opacity: 0.6;
+  background: var(--bg-secondary);
+}
+
+.slot-manage-info {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.slot-manage-name {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1.1rem;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  min-width: 120px;
+}
+
+.slot-manage-time {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  min-width: 140px;
+}
+
+.slot-manage-capacity {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  background: var(--bg-secondary);
+  padding: 4px 12px;
+  border-radius: 4px;
+}
+
+.slot-manage-inactive {
+  font-size: 0.75rem;
+  color: var(--warning);
+  background: rgba(245, 158, 11, 0.1);
+  padding: 4px 10px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  font-family: 'Oswald', sans-serif;
+  letter-spacing: 0.5px;
+}
+
+.slot-manage-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.edit-btn {
+  padding: 6px 14px;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  background: transparent;
+  border: 1px solid var(--accent-red);
+  color: var(--accent-red);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.edit-btn:hover {
+  background: var(--accent-red);
+  color: var(--text-primary);
+}
+
+.disable-btn {
+  padding: 6px 14px;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  background: transparent;
+  border: 1px solid var(--warning);
+  color: var(--warning);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.disable-btn:hover {
+  background: var(--warning);
+  color: var(--bg-primary);
+}
+
+.enable-btn {
+  padding: 6px 14px;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  background: transparent;
+  border: 1px solid var(--success);
+  color: var(--success);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.enable-btn:hover {
+  background: var(--success);
+  color: var(--text-primary);
+}
+
+@media (max-width: 768px) {
+  .slot-manage-item {
+    flex-direction: column;
+    gap: 16px;
+    align-items: flex-start;
+  }
+
+  .slot-manage-info {
+    gap: 12px;
+  }
+
+  .slot-manage-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}

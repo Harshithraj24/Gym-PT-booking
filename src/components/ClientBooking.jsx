@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
-import { SLOTS, MAX_BOOKINGS_PER_SLOT, getSlotCounts, getBlockedSlots, createBooking, getNextDates, formatDate } from '../lib/supabase'
+import { getSlotCounts, getBlockedSlots, createBooking, getNextDates, formatDate, getSlots, formatSlotTime } from '../lib/supabase'
 
 function ClientBooking() {
   const dates = getNextDates()
   const [selectedDate, setSelectedDate] = useState(dates[0].date)
+  const [slots, setSlots] = useState([])
   const [slotCounts, setSlotCounts] = useState({})
   const [blockedSlots, setBlockedSlots] = useState([])
   const [loading, setLoading] = useState(true)
@@ -14,8 +15,19 @@ function ClientBooking() {
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    loadSlotData()
-  }, [selectedDate])
+    loadSlots()
+  }, [])
+
+  useEffect(() => {
+    if (slots.length > 0) {
+      loadSlotData()
+    }
+  }, [selectedDate, slots])
+
+  async function loadSlots() {
+    const slotsData = await getSlots()
+    setSlots(slotsData)
+  }
 
   async function loadSlotData() {
     setLoading(true)
@@ -32,9 +44,10 @@ function ClientBooking() {
     return blockedSlots.some(b => b.slot_id === null || b.slot_id === slotId)
   }
 
-  function getAvailableSpots(slotId) {
-    if (isSlotBlocked(slotId)) return 0
-    return MAX_BOOKINGS_PER_SLOT - (slotCounts[slotId] || 0)
+  function getAvailableSpots(slot) {
+    if (isSlotBlocked(slot.id)) return 0
+    const maxCapacity = slot.max_capacity || 3
+    return maxCapacity - (slotCounts[slot.id] || 0)
   }
 
   function getSpotsClass(available) {
@@ -129,9 +142,9 @@ function ClientBooking() {
           </div>
         ) : (
           <div className="slots-grid">
-            {SLOTS.map(slot => {
+            {slots.map(slot => {
               const blocked = isSlotBlocked(slot.id)
-              const available = getAvailableSpots(slot.id)
+              const available = getAvailableSpots(slot)
               const isFull = available === 0
 
               return (
@@ -139,7 +152,7 @@ function ClientBooking() {
                   <div className="slot-header">
                     <div>
                       <h3 className="slot-name">{slot.name}</h3>
-                      <p className="slot-time">{slot.time}</p>
+                      <p className="slot-time">{formatSlotTime(slot)}</p>
                     </div>
                     <div className="slot-availability">
                       <div className={`spots-count ${getSpotsClass(available)}`}>
@@ -182,7 +195,7 @@ function ClientBooking() {
               <>
                 <h2 className="modal-title">Book Your Slot</h2>
                 <p className="modal-subtitle">
-                  {formatDate(selectedDate)} &bull; {bookingSlot.name} ({bookingSlot.time})
+                  {formatDate(selectedDate)} &bull; {bookingSlot.name} ({formatSlotTime(bookingSlot)})
                 </p>
 
                 <form onSubmit={handleSubmit}>
