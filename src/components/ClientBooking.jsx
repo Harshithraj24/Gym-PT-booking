@@ -1,33 +1,39 @@
 import { useState, useEffect } from 'react'
-import { SLOTS, DAYS, MAX_BOOKINGS_PER_SLOT, getSlotCounts, createBooking } from '../lib/supabase'
+import { SLOTS, MAX_BOOKINGS_PER_SLOT, getSlotCounts, getBlockedSlots, createBooking, getNextDates, formatDate } from '../lib/supabase'
 
 function ClientBooking() {
-  const [selectedDay, setSelectedDay] = useState(getCurrentDay())
+  const dates = getNextDates()
+  const [selectedDate, setSelectedDate] = useState(dates[0].date)
   const [slotCounts, setSlotCounts] = useState({})
+  const [blockedSlots, setBlockedSlots] = useState([])
   const [loading, setLoading] = useState(true)
   const [bookingSlot, setBookingSlot] = useState(null)
-  const [formData, setFormData] = useState({ name: '', phone: '' })
+  const [formData, setFormData] = useState({ name: '', phone: '', email: '' })
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState(null)
 
-  function getCurrentDay() {
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
-    return days[new Date().getDay()]
-  }
-
   useEffect(() => {
-    loadSlotCounts()
-  }, [selectedDay])
+    loadSlotData()
+  }, [selectedDate])
 
-  async function loadSlotCounts() {
+  async function loadSlotData() {
     setLoading(true)
-    const counts = await getSlotCounts(selectedDay)
+    const [counts, blocked] = await Promise.all([
+      getSlotCounts(selectedDate),
+      getBlockedSlots(selectedDate)
+    ])
     setSlotCounts(counts)
+    setBlockedSlots(blocked)
     setLoading(false)
   }
 
+  function isSlotBlocked(slotId) {
+    return blockedSlots.some(b => b.slot_id === null || b.slot_id === slotId)
+  }
+
   function getAvailableSpots(slotId) {
+    if (isSlotBlocked(slotId)) return 0
     return MAX_BOOKINGS_PER_SLOT - (slotCounts[slotId] || 0)
   }
 
@@ -39,14 +45,14 @@ function ClientBooking() {
 
   function openBookingModal(slot) {
     setBookingSlot(slot)
-    setFormData({ name: '', phone: '' })
+    setFormData({ name: '', phone: '', email: '' })
     setSuccess(false)
     setError(null)
   }
 
   function closeModal() {
     setBookingSlot(null)
-    setFormData({ name: '', phone: '' })
+    setFormData({ name: '', phone: '', email: '' })
     setSuccess(false)
     setError(null)
   }
@@ -55,7 +61,7 @@ function ClientBooking() {
     e.preventDefault()
 
     if (!formData.name.trim() || !formData.phone.trim()) {
-      setError('Please fill in all fields')
+      setError('Please fill in name and phone number')
       return
     }
 
@@ -63,41 +69,48 @@ function ClientBooking() {
     setError(null)
 
     const result = await createBooking(
-      selectedDay,
+      selectedDate,
       bookingSlot.id,
       formData.name.trim(),
-      formData.phone.trim()
+      formData.phone.trim(),
+      formData.email.trim()
     )
 
     setSubmitting(false)
 
     if (result.success) {
       setSuccess(true)
-      loadSlotCounts()
+      loadSlotData()
       setTimeout(() => {
         closeModal()
-      }, 2000)
+      }, 2500)
     } else {
       setError(result.error || 'Booking failed. Please try again.')
     }
   }
 
+  const selectedDateInfo = dates.find(d => d.date === selectedDate)
+  const isDayBlocked = blockedSlots.some(b => b.slot_id === null)
+
   return (
     <div>
       <div className="page-title-section">
         <h1 className="page-title">Book Your Slot</h1>
-        <p className="page-subtitle">Select a day and time that works for you</p>
+        <p className="page-subtitle">Select a date and time that works for you</p>
       </div>
 
       <div className="container">
-        <div className="day-selector">
-          {DAYS.map(day => (
+        <div className="date-selector">
+          {dates.map(d => (
             <button
-              key={day}
-              className={`day-btn ${selectedDay === day ? 'active' : ''}`}
-              onClick={() => setSelectedDay(day)}
+              key={d.date}
+              className={`date-btn ${selectedDate === d.date ? 'active' : ''}`}
+              onClick={() => setSelectedDate(d.date)}
             >
-              {day.slice(0, 3)}
+              <span className="date-day">{d.dayName}</span>
+              <span className="date-num">{d.dayNum}</span>
+              <span className="date-month">{d.month}</span>
+              {d.isToday && <span className="date-today">Today</span>}
             </button>
           ))}
         </div>
@@ -106,14 +119,23 @@ function ClientBooking() {
           <div className="loading">
             <div className="loading-spinner"></div>
           </div>
+        ) : isDayBlocked ? (
+          <div className="empty-state">
+            <div className="empty-icon">&#128683;</div>
+            <p className="empty-text">Not Available</p>
+            <p style={{ color: 'var(--text-muted)', marginTop: '8px' }}>
+              {blockedSlots.find(b => b.slot_id === null)?.reason || 'This day is blocked for bookings'}
+            </p>
+          </div>
         ) : (
           <div className="slots-grid">
             {SLOTS.map(slot => {
+              const blocked = isSlotBlocked(slot.id)
               const available = getAvailableSpots(slot.id)
               const isFull = available === 0
 
               return (
-                <div key={slot.id} className={`slot-card ${isFull ? 'full' : ''}`}>
+                <div key={slot.id} className={`slot-card ${isFull || blocked ? 'full' : ''}`}>
                   <div className="slot-header">
                     <div>
                       <h3 className="slot-name">{slot.name}</h3>
@@ -121,19 +143,19 @@ function ClientBooking() {
                     </div>
                     <div className="slot-availability">
                       <div className={`spots-count ${getSpotsClass(available)}`}>
-                        {available}
+                        {blocked ? '-' : available}
                       </div>
                       <div className="spots-label">
-                        {available === 1 ? 'spot left' : 'spots left'}
+                        {blocked ? 'Blocked' : available === 1 ? 'spot left' : 'spots left'}
                       </div>
                     </div>
                   </div>
                   <button
                     className="book-btn"
-                    disabled={isFull}
+                    disabled={isFull || blocked}
                     onClick={() => openBookingModal(slot)}
                   >
-                    {isFull ? 'Fully Booked' : 'Book Now'}
+                    {blocked ? 'Not Available' : isFull ? 'Fully Booked' : 'Book Now'}
                   </button>
                 </div>
               )
@@ -150,19 +172,22 @@ function ClientBooking() {
                 <div className="success-icon">&#10003;</div>
                 <h3 className="success-text">Booking Confirmed!</h3>
                 <p className="success-details">
-                  {selectedDay} &bull; {bookingSlot.name}
+                  {formatDate(selectedDate)} &bull; {bookingSlot.name}
+                </p>
+                <p style={{ color: 'var(--text-muted)', marginTop: '12px', fontSize: '0.9rem' }}>
+                  See you at the gym!
                 </p>
               </div>
             ) : (
               <>
                 <h2 className="modal-title">Book Your Slot</h2>
                 <p className="modal-subtitle">
-                  {selectedDay} &bull; {bookingSlot.name} ({bookingSlot.time})
+                  {formatDate(selectedDate)} &bull; {bookingSlot.name} ({bookingSlot.time})
                 </p>
 
                 <form onSubmit={handleSubmit}>
                   <div className="form-group">
-                    <label className="form-label">Your Name</label>
+                    <label className="form-label">Your Name *</label>
                     <input
                       type="text"
                       className="form-input"
@@ -174,13 +199,24 @@ function ClientBooking() {
                   </div>
 
                   <div className="form-group">
-                    <label className="form-label">Phone Number</label>
+                    <label className="form-label">Phone Number *</label>
                     <input
                       type="tel"
                       className="form-input"
                       placeholder="Enter your phone number"
                       value={formData.phone}
                       onChange={e => setFormData({ ...formData, phone: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Email (optional)</label>
+                    <input
+                      type="email"
+                      className="form-input"
+                      placeholder="Enter your email for confirmation"
+                      value={formData.email}
+                      onChange={e => setFormData({ ...formData, email: e.target.value })}
                     />
                   </div>
 
