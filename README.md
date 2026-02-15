@@ -260,10 +260,18 @@ Potential features to implement in future sessions:
 ### High Priority
 | Feature | Description | Complexity |
 |---------|-------------|------------|
+| **Admin Password Change** | Allow admin to change password from dashboard + forgot password via email | Medium |
 | **Booking Reminders** | Auto-send email/SMS 24h and 1h before session | Medium |
 | **Waitlist** | When slot is full, clients join waitlist and get notified if spot opens | Medium |
 | **No-show Tracking** | Mark clients who didn't show up, track repeat offenders | Easy |
 | **Client History** | View booking history per client (repeat visitors, cancellations) | Easy |
+
+#### Admin Password Change - Implementation Notes
+Store admin credentials in database (not Supabase Auth) so trainer doesn't need Supabase access:
+1. Create `admin_settings` table with `admin_email` and `admin_password` columns
+2. Add "Change Password" button in admin dashboard (old password + new password)
+3. Add "Forgot Password" link on login page → sends reset link to admin email via Resend
+4. Initial setup: Set admin email once via SQL command
 
 ### Nice to Have
 | Feature | Description | Complexity |
