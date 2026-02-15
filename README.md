@@ -250,7 +250,38 @@ vercel env add RESEND_API_KEY production
 ### Admin Dashboard
 - Bookings tab with filters
 - Block Slots tab for managing availability
+- Manage Slots tab for adding/editing/removing time slots
 - Stats overview
+
+## Future Features / Roadmap
+
+Potential features to implement in future sessions:
+
+### High Priority
+| Feature | Description | Complexity |
+|---------|-------------|------------|
+| **Booking Reminders** | Auto-send email/SMS 24h and 1h before session | Medium |
+| **Waitlist** | When slot is full, clients join waitlist and get notified if spot opens | Medium |
+| **No-show Tracking** | Mark clients who didn't show up, track repeat offenders | Easy |
+| **Client History** | View booking history per client (repeat visitors, cancellations) | Easy |
+
+### Nice to Have
+| Feature | Description | Complexity |
+|---------|-------------|------------|
+| **Recurring Bookings** | Client books same slot weekly (auto-creates future bookings) | Medium |
+| **Google Calendar Sync** | Export bookings to trainer's calendar (.ics export or API) | Medium |
+| **WhatsApp Notifications** | Send confirmations via WhatsApp Business API | Medium |
+| **Session Packages** | Sell 10-session packs, track remaining sessions per client | Medium |
+| **Payment Integration** | Razorpay/Stripe for online payments | Hard |
+
+### Future Expansion
+| Feature | Description | Complexity |
+|---------|-------------|------------|
+| **Client Accounts** | Clients log in to view/manage their own bookings | Hard |
+| **Analytics Dashboard** | Busiest days, popular slots, revenue trends, charts | Medium |
+| **Multi-trainer Support** | Support for multiple trainers with separate schedules | Hard |
+| **PWA / Mobile App** | Make the app installable on phones | Easy |
+| **Holiday Calendar** | Auto-block national holidays | Easy |
 
 ## License
 
