@@ -399,16 +399,7 @@ function TrainerAdmin() {
               <div className="stat-label">Blocked</div>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-            <button className="export-btn" onClick={exportBookingsToCalendar} title="Export to Google Calendar">
-              📅 Calendar
-            </button>
-            <button className="export-btn" onClick={exportBookingsToCSV} title="Export bookings to Excel">
-              📊 Bookings CSV
-            </button>
-            <button className="export-btn" onClick={exportClientsToCSV} title="Export clients to Excel">
-              👥 Clients CSV
-            </button>
+          <div style={{ display: 'flex', gap: '12px' }}>
             <button className="nav-link" onClick={loadData} style={{ cursor: 'pointer' }}>
               Refresh
             </button>
@@ -423,6 +414,19 @@ function TrainerAdmin() {
               Logout
             </button>
           </div>
+        </div>
+
+        <div className="export-section">
+          <span className="export-label">Export:</span>
+          <button className="export-btn" onClick={exportBookingsToCalendar}>
+            📅 Calendar
+          </button>
+          <button className="export-btn" onClick={exportBookingsToCSV}>
+            📊 Bookings CSV
+          </button>
+          <button className="export-btn" onClick={exportClientsToCSV}>
+            👥 Clients CSV
+          </button>
         </div>
 
         <div className="admin-tabs">

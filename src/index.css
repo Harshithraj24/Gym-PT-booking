@@ -1475,26 +1475,49 @@ h1, h2, h3, h4, h5, h6 {
   letter-spacing: 0.5px;
 }
 
-/* Export Buttons */
-.export-btn {
-  padding: 8px 14px;
-  font-family: 'Oswald', sans-serif;
-  font-size: 0.8rem;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+/* Export Section */
+.export-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 24px;
+  padding: 16px;
   background: var(--bg-card);
   border: 1px solid var(--border-color);
+  border-radius: 8px;
+  flex-wrap: wrap;
+}
+
+.export-label {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
   color: var(--text-secondary);
-  border-radius: 4px;
+}
+
+/* Export Buttons */
+.export-btn {
+  padding: 10px 16px;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: var(--accent-red);
+  border: none;
+  color: white;
+  border-radius: 6px;
   cursor: pointer;
   transition: all 0.3s ease;
   white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .export-btn:hover {
-  background: var(--bg-card-hover);
-  border-color: var(--accent-red);
-  color: var(--text-primary);
+  background: var(--accent-red-light);
+  transform: translateY(-1px);
 }
 
 /* History Button */
