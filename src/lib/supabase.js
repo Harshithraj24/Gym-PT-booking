@@ -483,7 +483,10 @@ export function formatSlotTime(slot) {
 
 export const PLAN_TYPES = [
   { id: '1_month', name: '1 Month', days: 30 },
+  { id: '2_months', name: '2 Months', days: 60 },
   { id: '3_months', name: '3 Months', days: 90 },
+  { id: '4_months', name: '4 Months', days: 120 },
+  { id: '5_months', name: '5 Months', days: 150 },
   { id: '6_months', name: '6 Months', days: 180 },
   { id: '1_year', name: '1 Year', days: 365 },
 ]
