@@ -3,17 +3,41 @@ import { useState } from 'react'
 function AdminLogin({ onLogin }) {
   const [password, setPassword] = useState('')
   const [error, setError] = useState(false)
+  const [loading, setLoading] = useState(false)
 
-  const ADMIN_PASSWORD = import.meta.env.VITE_ADMIN_PASSWORD || 'murali123'
-
-  function handleSubmit(e) {
+  async function handleSubmit(e) {
     e.preventDefault()
-    if (password === ADMIN_PASSWORD) {
-      sessionStorage.setItem('admin_authenticated', 'true')
-      onLogin()
-    } else {
+
+    if (!password) {
+      setError(true)
+      return
+    }
+
+    setLoading(true)
+    setError(false)
+
+    try {
+      const response = await fetch('/api/verify-admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password })
+      })
+
+      const data = await response.json()
+
+      if (data.success) {
+        sessionStorage.setItem('admin_authenticated', 'true')
+        onLogin()
+      } else {
+        setError(true)
+        setPassword('')
+      }
+    } catch (err) {
+      console.error('Login error:', err)
       setError(true)
       setPassword('')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -38,6 +62,7 @@ function AdminLogin({ onLogin }) {
                 setError(false)
               }}
               autoFocus
+              disabled={loading}
             />
           </div>
 
@@ -47,8 +72,8 @@ function AdminLogin({ onLogin }) {
             </div>
           )}
 
-          <button type="submit" className="book-btn">
-            Login
+          <button type="submit" className="book-btn" disabled={loading}>
+            {loading ? 'Verifying...' : 'Login'}
           </button>
         </form>
       </div>
