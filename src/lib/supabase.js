@@ -681,3 +681,143 @@ export async function verifyClientByPhone(phone) {
 
   return { success: true, client }
 }
+
+// ============ BOOKING HISTORY ============
+
+// Get bookings for a specific client by phone
+export async function getClientBookingHistory(phone) {
+  if (!supabase) return []
+
+  const { data, error } = await supabase
+    .from('bookings')
+    .select('*')
+    .eq('client_phone', phone)
+    .order('booking_date', { ascending: false })
+
+  if (error) {
+    console.error('Error fetching client booking history:', error)
+    return []
+  }
+
+  return data || []
+}
+
+// ============ EXPORT UTILITIES ============
+
+// Generate ICS file content for a booking
+export function generateICSEvent(booking, slot) {
+  const dateStr = booking.booking_date.replace(/-/g, '')
+
+  // Parse slot time to get hours/minutes
+  const parseTime = (timeStr) => {
+    const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i)
+    if (!match) return { hour: 0, minute: 0 }
+    let hour = parseInt(match[1])
+    const minute = parseInt(match[2])
+    const isPM = match[3].toUpperCase() === 'PM'
+    if (isPM && hour !== 12) hour += 12
+    if (!isPM && hour === 12) hour = 0
+    return { hour, minute }
+  }
+
+  const startTime = parseTime(slot?.time_start || '6:00 AM')
+  const endTime = parseTime(slot?.time_end || '7:00 AM')
+
+  const formatTime = (h, m) => String(h).padStart(2, '0') + String(m).padStart(2, '0') + '00'
+
+  const dtStart = dateStr + 'T' + formatTime(startTime.hour, startTime.minute)
+  const dtEnd = dateStr + 'T' + formatTime(endTime.hour, endTime.minute)
+
+  const uid = `${booking.id}@fit2fly`
+  const now = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+
+  return `BEGIN:VEVENT
+UID:${uid}
+DTSTAMP:${now}
+DTSTART:${dtStart}
+DTEND:${dtEnd}
+SUMMARY:FIT2FLY - ${booking.client_name}
+DESCRIPTION:Client: ${booking.client_name}\\nPhone: ${booking.client_phone}${booking.client_email ? '\\nEmail: ' + booking.client_email : ''}\\nSlot: ${slot?.name || booking.slot_id}
+LOCATION:FIT2FLY Gym
+END:VEVENT`
+}
+
+// Generate full ICS calendar
+export function generateICSCalendar(bookings, slots) {
+  const events = bookings.map(booking => {
+    const slot = slots.find(s => s.id === booking.slot_id)
+    return generateICSEvent(booking, slot)
+  }).join('\n')
+
+  return `BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//FIT2FLY//Booking System//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+X-WR-CALNAME:FIT2FLY Bookings
+${events}
+END:VCALENDAR`
+}
+
+// Generate CSV for bookings
+export function generateBookingsCSV(bookings, slots) {
+  const headers = ['Date', 'Day', 'Slot', 'Time', 'Client Name', 'Phone', 'Email', 'Booked At']
+
+  const rows = bookings.map(booking => {
+    const slot = slots.find(s => s.id === booking.slot_id)
+    return [
+      booking.booking_date,
+      booking.day,
+      slot?.name || booking.slot_id,
+      slot ? formatSlotTime(slot) : '',
+      booking.client_name,
+      booking.client_phone,
+      booking.client_email || '',
+      new Date(booking.booked_at).toLocaleString()
+    ]
+  })
+
+  return [headers, ...rows]
+    .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    .join('\n')
+}
+
+// Generate CSV for clients
+export function generateClientsCSV(clients) {
+  const headers = ['Name', 'Phone', 'Email', 'Plan', 'Start Date', 'End Date', 'Days Left', 'Status', 'Notes']
+
+  const rows = clients.map(client => {
+    const daysLeft = getDaysRemaining(client.end_date)
+    const status = getClientStatus(client.end_date)
+    const plan = PLAN_TYPES.find(p => p.id === client.plan_type)
+
+    return [
+      client.name,
+      client.phone,
+      client.email || '',
+      plan?.name || client.plan_type,
+      client.start_date,
+      client.end_date,
+      daysLeft,
+      status,
+      client.notes || ''
+    ]
+  })
+
+  return [headers, ...rows]
+    .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    .join('\n')
+}
+
+// Download helper
+export function downloadFile(content, filename, mimeType) {
+  const blob = new Blob([content], { type: mimeType })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}

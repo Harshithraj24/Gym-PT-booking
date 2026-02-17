@@ -1474,3 +1474,222 @@ h1, h2, h3, h4, h5, h6 {
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
+
+/* Export Buttons */
+.export-btn {
+  padding: 8px 14px;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.export-btn:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--accent-red);
+  color: var(--text-primary);
+}
+
+/* History Button */
+.history-btn {
+  padding: 6px 14px;
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  background: rgba(100, 149, 237, 0.15);
+  border: 1px solid cornflowerblue;
+  color: cornflowerblue;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.history-btn:hover {
+  background: rgba(100, 149, 237, 0.25);
+}
+
+/* History Modal */
+.history-modal {
+  max-width: 600px;
+  width: 95%;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.8rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0;
+  transition: color 0.2s ease;
+}
+
+.modal-close:hover {
+  color: var(--accent-red);
+}
+
+.history-client-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--bg-secondary);
+  padding: 12px 16px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+}
+
+.history-client-name {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1.1rem;
+  color: var(--text-primary);
+  text-transform: uppercase;
+}
+
+.history-client-phone {
+  color: var(--accent-red);
+  font-size: 0.9rem;
+}
+
+.history-stats {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.history-stat {
+  flex: 1;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px;
+  text-align: center;
+}
+
+.history-stat-num {
+  font-family: 'Oswald', sans-serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--accent-red);
+  display: block;
+}
+
+.history-stat-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+.history-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px 16px;
+}
+
+.history-item.past {
+  opacity: 0.6;
+}
+
+.history-item.upcoming {
+  border-color: var(--success);
+}
+
+.history-date {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.history-date-day {
+  font-family: 'Oswald', sans-serif;
+  color: var(--text-primary);
+}
+
+.history-badge {
+  font-size: 0.65rem;
+  font-family: 'Oswald', sans-serif;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 10px;
+}
+
+.history-badge.past {
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+}
+
+.history-badge.upcoming {
+  background: rgba(34, 197, 94, 0.15);
+  color: var(--success);
+}
+
+.history-slot {
+  text-align: right;
+}
+
+.history-slot-name {
+  font-family: 'Oswald', sans-serif;
+  font-size: 0.9rem;
+  color: var(--accent-red);
+  text-transform: uppercase;
+}
+
+.history-slot-time {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.history-actions {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  justify-content: center;
+}
+
+@media (max-width: 600px) {
+  .history-stats {
+    flex-direction: column;
+  }
+
+  .history-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .history-slot {
+    text-align: left;
+  }
+}

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getAllBookings, deleteBooking, getAllBlockedSlots, blockSlot, unblockSlot, formatDate, getAllSlots, createSlot, updateSlot, deleteSlot, toggleSlotActive, formatSlotTime, getAllClients, addClient, updateClient, deleteClient, renewClient, PLAN_TYPES, getDaysRemaining, getClientStatus } from '../lib/supabase'
+import { getAllBookings, deleteBooking, getAllBlockedSlots, blockSlot, unblockSlot, formatDate, getAllSlots, createSlot, updateSlot, deleteSlot, toggleSlotActive, formatSlotTime, getAllClients, addClient, updateClient, deleteClient, renewClient, PLAN_TYPES, getDaysRemaining, getClientStatus, getClientBookingHistory, generateICSCalendar, generateBookingsCSV, generateClientsCSV, downloadFile } from '../lib/supabase'
 import AdminLogin from './AdminLogin'
 
 function TrainerAdmin() {
@@ -34,6 +34,11 @@ function TrainerAdmin() {
   const [renewingClient, setRenewingClient] = useState(null)
   const [renewPlanType, setRenewPlanType] = useState('1_month')
   const [clientFilter, setClientFilter] = useState('all')
+
+  // Booking history modal state
+  const [historyClient, setHistoryClient] = useState(null)
+  const [clientHistory, setClientHistory] = useState([])
+  const [loadingHistory, setLoadingHistory] = useState(false)
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -290,6 +295,44 @@ function TrainerAdmin() {
     return PLAN_TYPES.find(p => p.id === planType)?.name || planType
   }
 
+  // Booking history functions
+  async function viewClientHistory(client) {
+    setHistoryClient(client)
+    setLoadingHistory(true)
+    const history = await getClientBookingHistory(client.phone)
+    setClientHistory(history)
+    setLoadingHistory(false)
+  }
+
+  function closeHistoryModal() {
+    setHistoryClient(null)
+    setClientHistory([])
+  }
+
+  // Export functions
+  function exportBookingsToCalendar() {
+    const icsContent = generateICSCalendar(bookings, slots)
+    const today = new Date().toISOString().split('T')[0]
+    downloadFile(icsContent, `fit2fly-bookings-${today}.ics`, 'text/calendar')
+  }
+
+  function exportBookingsToCSV() {
+    const csvContent = generateBookingsCSV(bookings, slots)
+    const today = new Date().toISOString().split('T')[0]
+    downloadFile(csvContent, `fit2fly-bookings-${today}.csv`, 'text/csv')
+  }
+
+  function exportClientsToCSV() {
+    const csvContent = generateClientsCSV(clients)
+    const today = new Date().toISOString().split('T')[0]
+    downloadFile(csvContent, `fit2fly-clients-${today}.csv`, 'text/csv')
+  }
+
+  function exportClientHistoryToCalendar(history, client) {
+    const icsContent = generateICSCalendar(history, slots)
+    downloadFile(icsContent, `fit2fly-${client.name.replace(/\s+/g, '-')}-bookings.ics`, 'text/calendar')
+  }
+
   // Filter clients
   const filteredClients = clients.filter(client => {
     if (clientFilter === 'all') return true
@@ -356,7 +399,16 @@ function TrainerAdmin() {
               <div className="stat-label">Blocked</div>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '12px' }}>
+          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            <button className="export-btn" onClick={exportBookingsToCalendar} title="Export to Google Calendar">
+              📅 Calendar
+            </button>
+            <button className="export-btn" onClick={exportBookingsToCSV} title="Export bookings to Excel">
+              📊 Bookings CSV
+            </button>
+            <button className="export-btn" onClick={exportClientsToCSV} title="Export clients to Excel">
+              👥 Clients CSV
+            </button>
             <button className="nav-link" onClick={loadData} style={{ cursor: 'pointer' }}>
               Refresh
             </button>
@@ -856,6 +908,7 @@ function TrainerAdmin() {
                           </div>
                         ) : (
                           <>
+                            <button className="history-btn" onClick={() => viewClientHistory(client)}>History</button>
                             <button className="renew-btn" onClick={() => setRenewingClient(client.id)}>Renew</button>
                             <button className="edit-btn" onClick={() => startEditClient(client)}>Edit</button>
                             <button className="delete-btn" onClick={() => handleDeleteClient(client.id)}>Delete</button>
@@ -868,6 +921,83 @@ function TrainerAdmin() {
               </div>
             )}
           </>
+        )}
+
+        {/* Booking History Modal */}
+        {historyClient && (
+          <div className="modal-overlay" onClick={closeHistoryModal}>
+            <div className="modal history-modal" onClick={e => e.stopPropagation()}>
+              <div className="modal-header">
+                <h2 className="modal-title">Booking History</h2>
+                <button className="modal-close" onClick={closeHistoryModal}>×</button>
+              </div>
+              <div className="history-client-info">
+                <span className="history-client-name">{historyClient.name}</span>
+                <span className="history-client-phone">{historyClient.phone}</span>
+              </div>
+
+              {loadingHistory ? (
+                <div className="loading">
+                  <div className="loading-spinner"></div>
+                </div>
+              ) : clientHistory.length === 0 ? (
+                <div className="empty-state" style={{ padding: '40px 0' }}>
+                  <div className="empty-icon">📋</div>
+                  <p className="empty-text">No booking history found</p>
+                </div>
+              ) : (
+                <>
+                  <div className="history-stats">
+                    <div className="history-stat">
+                      <span className="history-stat-num">{clientHistory.length}</span>
+                      <span className="history-stat-label">Total Bookings</span>
+                    </div>
+                    <div className="history-stat">
+                      <span className="history-stat-num">
+                        {clientHistory.filter(b => b.booking_date >= todayStr).length}
+                      </span>
+                      <span className="history-stat-label">Upcoming</span>
+                    </div>
+                    <div className="history-stat">
+                      <span className="history-stat-num">
+                        {clientHistory.filter(b => b.booking_date < todayStr).length}
+                      </span>
+                      <span className="history-stat-label">Past</span>
+                    </div>
+                  </div>
+
+                  <div className="history-list">
+                    {clientHistory.map(booking => (
+                      <div
+                        key={booking.id}
+                        className={`history-item ${booking.booking_date < todayStr ? 'past' : 'upcoming'}`}
+                      >
+                        <div className="history-date">
+                          <span className="history-date-day">{formatDate(booking.booking_date)}</span>
+                          <span className={`history-badge ${booking.booking_date < todayStr ? 'past' : 'upcoming'}`}>
+                            {booking.booking_date < todayStr ? 'Completed' : booking.booking_date === todayStr ? 'Today' : 'Upcoming'}
+                          </span>
+                        </div>
+                        <div className="history-slot">
+                          <span className="history-slot-name">{getSlotName(booking.slot_id)}</span>
+                          <span className="history-slot-time">{getSlotTime(booking.slot_id)}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="history-actions">
+                    <button
+                      className="export-btn"
+                      onClick={() => exportClientHistoryToCalendar(clientHistory, historyClient)}
+                    >
+                      📅 Export to Calendar
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
         )}
       </div>
     </div>
