@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getAllBookings, deleteBooking, getAllBlockedSlots, blockSlot, unblockSlot, formatDate, getAllSlots, createSlot, updateSlot, deleteSlot, toggleSlotActive, formatSlotTime } from '../lib/supabase'
+import { getAllBookings, deleteBooking, getAllBlockedSlots, blockSlot, unblockSlot, formatDate, getAllSlots, createSlot, updateSlot, deleteSlot, toggleSlotActive, formatSlotTime, getAllClients, addClient, updateClient, deleteClient, renewClient, PLAN_TYPES, getDaysRemaining, getClientStatus } from '../lib/supabase'
 import AdminLogin from './AdminLogin'
 
 function TrainerAdmin() {
@@ -10,6 +10,7 @@ function TrainerAdmin() {
   const [bookings, setBookings] = useState([])
   const [blockedSlots, setBlockedSlots] = useState([])
   const [slots, setSlots] = useState([])
+  const [clients, setClients] = useState([])
   const [loading, setLoading] = useState(true)
   const [filterDate, setFilterDate] = useState('all')
   const [filterSlot, setFilterSlot] = useState('all')
@@ -26,6 +27,14 @@ function TrainerAdmin() {
   const [editingSlot, setEditingSlot] = useState(null)
   const [savingSlot, setSavingSlot] = useState(false)
 
+  // Client management state
+  const [clientForm, setClientForm] = useState({ name: '', phone: '', email: '', planType: '1_month', startDate: '', notes: '' })
+  const [editingClient, setEditingClient] = useState(null)
+  const [savingClient, setSavingClient] = useState(false)
+  const [renewingClient, setRenewingClient] = useState(null)
+  const [renewPlanType, setRenewPlanType] = useState('1_month')
+  const [clientFilter, setClientFilter] = useState('all')
+
   useEffect(() => {
     if (isAuthenticated) {
       loadData()
@@ -38,14 +47,16 @@ function TrainerAdmin() {
 
   async function loadData() {
     setLoading(true)
-    const [bookingsData, blockedData, slotsData] = await Promise.all([
+    const [bookingsData, blockedData, slotsData, clientsData] = await Promise.all([
       getAllBookings(),
       getAllBlockedSlots(),
-      getAllSlots()
+      getAllSlots(),
+      getAllClients()
     ])
     setBookings(bookingsData)
     setBlockedSlots(blockedData)
     setSlots(slotsData)
+    setClients(clientsData)
     setLoading(false)
   }
 
@@ -185,6 +196,118 @@ function TrainerAdmin() {
     setSlotForm({ name: '', timeStart: '', timeEnd: '', maxCapacity: 3 })
   }
 
+  // Client management functions
+  async function handleAddClient(e) {
+    e.preventDefault()
+    if (!clientForm.name || !clientForm.phone || !clientForm.startDate) {
+      alert('Please fill in name, phone, and start date')
+      return
+    }
+
+    setSavingClient(true)
+    const result = await addClient({
+      name: clientForm.name,
+      phone: clientForm.phone,
+      email: clientForm.email,
+      plan_type: clientForm.planType,
+      start_date: clientForm.startDate,
+      notes: clientForm.notes
+    })
+    setSavingClient(false)
+
+    if (result.success) {
+      setClients([...clients, result.data])
+      setClientForm({ name: '', phone: '', email: '', planType: '1_month', startDate: '', notes: '' })
+    } else {
+      alert('Failed to add client: ' + result.error)
+    }
+  }
+
+  async function handleUpdateClient(e) {
+    e.preventDefault()
+    if (!editingClient) return
+
+    setSavingClient(true)
+    const result = await updateClient(editingClient.id, {
+      name: clientForm.name,
+      phone: clientForm.phone,
+      email: clientForm.email,
+      plan_type: clientForm.planType,
+      start_date: clientForm.startDate,
+      notes: clientForm.notes
+    })
+    setSavingClient(false)
+
+    if (result.success) {
+      setClients(clients.map(c => c.id === editingClient.id ? result.data : c))
+      setEditingClient(null)
+      setClientForm({ name: '', phone: '', email: '', planType: '1_month', startDate: '', notes: '' })
+    } else {
+      alert('Failed to update client: ' + result.error)
+    }
+  }
+
+  async function handleDeleteClient(id) {
+    if (!confirm('Are you sure you want to delete this client?')) return
+
+    const result = await deleteClient(id)
+    if (result.success) {
+      setClients(clients.filter(c => c.id !== id))
+    } else {
+      alert('Failed to delete client: ' + result.error)
+    }
+  }
+
+  async function handleRenewClient(id) {
+    const result = await renewClient(id, renewPlanType)
+    if (result.success) {
+      setClients(clients.map(c => c.id === id ? result.data : c))
+      setRenewingClient(null)
+      setRenewPlanType('1_month')
+    } else {
+      alert('Failed to renew client: ' + result.error)
+    }
+  }
+
+  function startEditClient(client) {
+    setEditingClient(client)
+    setClientForm({
+      name: client.name,
+      phone: client.phone,
+      email: client.email || '',
+      planType: client.plan_type,
+      startDate: client.start_date,
+      notes: client.notes || ''
+    })
+  }
+
+  function cancelEditClient() {
+    setEditingClient(null)
+    setClientForm({ name: '', phone: '', email: '', planType: '1_month', startDate: '', notes: '' })
+  }
+
+  function getPlanName(planType) {
+    return PLAN_TYPES.find(p => p.id === planType)?.name || planType
+  }
+
+  // Filter clients
+  const filteredClients = clients.filter(client => {
+    if (clientFilter === 'all') return true
+    const status = getClientStatus(client.end_date)
+    if (clientFilter === 'active') return status === 'active'
+    if (clientFilter === 'expiring') return status === 'expiring'
+    if (clientFilter === 'expired') return status === 'expired'
+    return true
+  })
+
+  // Client stats
+  const clientStats = {
+    total: clients.length,
+    active: clients.filter(c => getClientStatus(c.end_date) === 'active').length,
+    expiring: clients.filter(c => getClientStatus(c.end_date) === 'expiring').length,
+    expired: clients.filter(c => getClientStatus(c.end_date) === 'expired').length
+  }
+
   function formatDateTime(dateString) {
     return new Date(dateString).toLocaleDateString('en-US', {
       month: 'short',
@@ -256,6 +379,12 @@ function TrainerAdmin() {
             onClick={() => setActiveTab('bookings')}
           >
             Bookings
+          </button>
+          <button
+            className={`admin-tab ${activeTab === 'clients' ? 'active' : ''}`}
+            onClick={() => setActiveTab('clients')}
+          >
+            Clients {clientStats.expiring > 0 && <span className="tab-badge">{clientStats.expiring}</span>}
           </button>
           <button
             className={`admin-tab ${activeTab === 'blocked' ? 'active' : ''}`}
@@ -563,6 +692,179 @@ function TrainerAdmin() {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {activeTab === 'clients' && (
+          <>
+            <div className="client-stats">
+              <div className={`client-stat-box ${clientFilter === 'all' ? 'active' : ''}`} onClick={() => setClientFilter('all')}>
+                <div className="client-stat-number">{clientStats.total}</div>
+                <div className="client-stat-label">Total</div>
+              </div>
+              <div className={`client-stat-box ${clientFilter === 'active' ? 'active' : ''}`} onClick={() => setClientFilter('active')}>
+                <div className="client-stat-number green">{clientStats.active}</div>
+                <div className="client-stat-label">Active</div>
+              </div>
+              <div className={`client-stat-box ${clientFilter === 'expiring' ? 'active' : ''}`} onClick={() => setClientFilter('expiring')}>
+                <div className="client-stat-number orange">{clientStats.expiring}</div>
+                <div className="client-stat-label">Expiring Soon</div>
+              </div>
+              <div className={`client-stat-box ${clientFilter === 'expired' ? 'active' : ''}`} onClick={() => setClientFilter('expired')}>
+                <div className="client-stat-number red">{clientStats.expired}</div>
+                <div className="client-stat-label">Expired</div>
+              </div>
+            </div>
+
+            <div className="block-form">
+              <h3 className="block-form-title">
+                {editingClient ? 'Edit Client' : 'Add New Client'}
+              </h3>
+              <form onSubmit={editingClient ? handleUpdateClient : handleAddClient}>
+                <div className="block-form-row">
+                  <div className="block-form-group">
+                    <label>Name *</label>
+                    <input
+                      type="text"
+                      placeholder="Client name"
+                      value={clientForm.name}
+                      onChange={e => setClientForm({ ...clientForm, name: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="block-form-group">
+                    <label>Phone *</label>
+                    <input
+                      type="tel"
+                      placeholder="Phone number"
+                      value={clientForm.phone}
+                      onChange={e => setClientForm({ ...clientForm, phone: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="block-form-group">
+                    <label>Email</label>
+                    <input
+                      type="email"
+                      placeholder="Email (optional)"
+                      value={clientForm.email}
+                      onChange={e => setClientForm({ ...clientForm, email: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className="block-form-row" style={{ marginTop: '16px' }}>
+                  <div className="block-form-group">
+                    <label>Plan *</label>
+                    <select
+                      value={clientForm.planType}
+                      onChange={e => setClientForm({ ...clientForm, planType: e.target.value })}
+                    >
+                      {PLAN_TYPES.map(plan => (
+                        <option key={plan.id} value={plan.id}>{plan.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="block-form-group">
+                    <label>Start Date *</label>
+                    <input
+                      type="date"
+                      value={clientForm.startDate}
+                      onChange={e => setClientForm({ ...clientForm, startDate: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="block-form-group" style={{ flex: 2 }}>
+                    <label>Notes</label>
+                    <input
+                      type="text"
+                      placeholder="Any notes about client"
+                      value={clientForm.notes}
+                      onChange={e => setClientForm({ ...clientForm, notes: e.target.value })}
+                    />
+                  </div>
+                  <button type="submit" className="block-form-btn" disabled={savingClient}>
+                    {savingClient ? 'Saving...' : editingClient ? 'Update' : 'Add Client'}
+                  </button>
+                  {editingClient && (
+                    <button type="button" className="unblock-btn" onClick={cancelEditClient} style={{ marginLeft: '8px' }}>
+                      Cancel
+                    </button>
+                  )}
+                </div>
+              </form>
+            </div>
+
+            <h3 style={{ fontFamily: 'Oswald', marginBottom: '16px', textTransform: 'uppercase' }}>
+              {clientFilter === 'all' ? 'All Clients' : clientFilter === 'active' ? 'Active Clients' : clientFilter === 'expiring' ? 'Expiring Soon' : 'Expired Memberships'}
+              <span style={{ fontWeight: 'normal', fontSize: '0.9rem', marginLeft: '8px', color: 'var(--text-muted)' }}>
+                ({filteredClients.length})
+              </span>
+            </h3>
+
+            {filteredClients.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-icon">&#128100;</div>
+                <p className="empty-text">No clients found</p>
+              </div>
+            ) : (
+              <div className="clients-list">
+                {filteredClients.map(client => {
+                  const status = getClientStatus(client.end_date)
+                  const daysLeft = getDaysRemaining(client.end_date)
+
+                  return (
+                    <div key={client.id} className={`client-card ${status}`}>
+                      <div className="client-status-indicator"></div>
+                      <div className="client-info">
+                        <div className="client-name">{client.name}</div>
+                        <div className="client-contact">
+                          <a href={`tel:${client.phone}`}>{client.phone}</a>
+                          {client.email && <span> • <a href={`mailto:${client.email}`}>{client.email}</a></span>}
+                        </div>
+                        {client.notes && <div className="client-notes">"{client.notes}"</div>}
+                      </div>
+                      <div className="client-plan">
+                        <div className="client-plan-name">{getPlanName(client.plan_type)}</div>
+                        <div className="client-dates">
+                          {formatDate(client.start_date)} - {formatDate(client.end_date)}
+                        </div>
+                      </div>
+                      <div className="client-status">
+                        {status === 'expired' ? (
+                          <span className="days-badge expired">Expired {Math.abs(daysLeft)} days ago</span>
+                        ) : status === 'expiring' ? (
+                          <span className="days-badge expiring">{daysLeft} days left</span>
+                        ) : (
+                          <span className="days-badge active">{daysLeft} days left</span>
+                        )}
+                      </div>
+                      <div className="client-actions">
+                        {renewingClient === client.id ? (
+                          <div className="renew-form">
+                            <select
+                              value={renewPlanType}
+                              onChange={e => setRenewPlanType(e.target.value)}
+                            >
+                              {PLAN_TYPES.map(plan => (
+                                <option key={plan.id} value={plan.id}>{plan.name}</option>
+                              ))}
+                            </select>
+                            <button className="enable-btn" onClick={() => handleRenewClient(client.id)}>Confirm</button>
+                            <button className="unblock-btn" onClick={() => setRenewingClient(null)}>Cancel</button>
+                          </div>
+                        ) : (
+                          <>
+                            <button className="renew-btn" onClick={() => setRenewingClient(client.id)}>Renew</button>
+                            <button className="edit-btn" onClick={() => startEditClient(client)}>Edit</button>
+                            <button className="delete-btn" onClick={() => handleDeleteClient(client.id)}>Delete</button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             )}
           </>

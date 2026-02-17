@@ -478,3 +478,169 @@ export async function reorderSlots(slotIds) {
 export function formatSlotTime(slot) {
   return `${slot.time_start} - ${slot.time_end}`
 }
+
+// ============ CLIENT MANAGEMENT ============
+
+export const PLAN_TYPES = [
+  { id: '1_month', name: '1 Month', days: 30 },
+  { id: '3_months', name: '3 Months', days: 90 },
+  { id: '6_months', name: '6 Months', days: 180 },
+  { id: '1_year', name: '1 Year', days: 365 },
+]
+
+// Calculate end date based on plan type
+export function calculateEndDate(startDate, planType) {
+  const plan = PLAN_TYPES.find(p => p.id === planType)
+  if (!plan) return startDate
+
+  const start = new Date(startDate + 'T00:00:00')
+  start.setDate(start.getDate() + plan.days)
+  return start.toISOString().split('T')[0]
+}
+
+// Get days remaining for a client
+export function getDaysRemaining(endDate) {
+  const end = new Date(endDate + 'T00:00:00')
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const diff = Math.ceil((end - today) / (1000 * 60 * 60 * 24))
+  return diff
+}
+
+// Get client status based on end date
+export function getClientStatus(endDate) {
+  const days = getDaysRemaining(endDate)
+  if (days < 0) return 'expired'
+  if (days <= 7) return 'expiring'
+  return 'active'
+}
+
+// Get all clients
+export async function getAllClients() {
+  if (!supabase) return []
+
+  const { data, error } = await supabase
+    .from('clients')
+    .select('*')
+    .order('end_date', { ascending: true })
+
+  if (error) {
+    console.error('Error fetching clients:', error)
+    return []
+  }
+
+  return data || []
+}
+
+// Create a new client
+export async function addClient(clientData) {
+  if (!supabase) {
+    return { success: false, error: 'Database not configured' }
+  }
+
+  const endDate = calculateEndDate(clientData.start_date, clientData.plan_type)
+
+  const { data, error } = await supabase
+    .from('clients')
+    .insert([{
+      name: clientData.name,
+      phone: clientData.phone,
+      email: clientData.email || null,
+      plan_type: clientData.plan_type,
+      start_date: clientData.start_date,
+      end_date: endDate,
+      status: 'active',
+      notes: clientData.notes || null
+    }])
+    .select()
+
+  if (error) {
+    console.error('Error creating client:', error)
+    return { success: false, error: error.message }
+  }
+
+  return { success: true, data: data[0] }
+}
+
+// Update a client
+export async function updateClient(id, updates) {
+  if (!supabase) {
+    return { success: false, error: 'Database not configured' }
+  }
+
+  // Recalculate end date if start_date or plan_type changed
+  if (updates.start_date || updates.plan_type) {
+    const { data: current } = await supabase
+      .from('clients')
+      .select('start_date, plan_type')
+      .eq('id', id)
+      .single()
+
+    if (current) {
+      const startDate = updates.start_date || current.start_date
+      const planType = updates.plan_type || current.plan_type
+      updates.end_date = calculateEndDate(startDate, planType)
+    }
+  }
+
+  const { data, error } = await supabase
+    .from('clients')
+    .update(updates)
+    .eq('id', id)
+    .select()
+
+  if (error) {
+    console.error('Error updating client:', error)
+    return { success: false, error: error.message }
+  }
+
+  return { success: true, data: data[0] }
+}
+
+// Delete a client
+export async function deleteClient(id) {
+  if (!supabase) {
+    return { success: false, error: 'Database not configured' }
+  }
+
+  const { error } = await supabase
+    .from('clients')
+    .delete()
+    .eq('id', id)
+
+  if (error) {
+    console.error('Error deleting client:', error)
+    return { success: false, error: error.message }
+  }
+
+  return { success: true }
+}
+
+// Renew a client's membership
+export async function renewClient(id, newPlanType, newStartDate = null) {
+  if (!supabase) {
+    return { success: false, error: 'Database not configured' }
+  }
+
+  // Start from today if no date provided
+  const startDate = newStartDate || new Date().toISOString().split('T')[0]
+  const endDate = calculateEndDate(startDate, newPlanType)
+
+  const { data, error } = await supabase
+    .from('clients')
+    .update({
+      plan_type: newPlanType,
+      start_date: startDate,
+      end_date: endDate,
+      status: 'active'
+    })
+    .eq('id', id)
+    .select()
+
+  if (error) {
+    console.error('Error renewing client:', error)
+    return { success: false, error: error.message }
+  }
+
+  return { success: true, data: data[0] }
+}
