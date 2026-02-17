@@ -647,3 +647,37 @@ export async function renewClient(id, newPlanType, newStartDate = null) {
 
   return { success: true, data: data[0] }
 }
+
+// Verify client by phone number (for booking access)
+export async function verifyClientByPhone(phone) {
+  if (!supabase) {
+    return { success: false, error: 'Database not configured' }
+  }
+
+  // Normalize phone number (remove spaces, dashes)
+  const normalizedPhone = phone.replace(/[\s\-\(\)]/g, '')
+
+  const { data, error } = await supabase
+    .from('clients')
+    .select('*')
+    .or(`phone.eq.${normalizedPhone},phone.eq.${phone}`)
+    .limit(1)
+
+  if (error) {
+    console.error('Error verifying client:', error)
+    return { success: false, error: error.message }
+  }
+
+  if (!data || data.length === 0) {
+    return { success: false, error: 'not_found' }
+  }
+
+  const client = data[0]
+  const status = getClientStatus(client.end_date)
+
+  if (status === 'expired') {
+    return { success: false, error: 'expired', client }
+  }
+
+  return { success: true, client }
+}

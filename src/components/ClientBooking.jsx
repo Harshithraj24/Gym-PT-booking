@@ -1,7 +1,15 @@
 import { useState, useEffect } from 'react'
-import { getSlotCounts, getBlockedSlots, createBooking, getNextDates, formatDate, getSlots, formatSlotTime } from '../lib/supabase'
+import { getSlotCounts, getBlockedSlots, createBooking, getNextDates, formatDate, getSlots, formatSlotTime, verifyClientByPhone, getDaysRemaining } from '../lib/supabase'
 
 function ClientBooking() {
+  // Auth state
+  const [isVerified, setIsVerified] = useState(false)
+  const [verifiedClient, setVerifiedClient] = useState(null)
+  const [verifyPhone, setVerifyPhone] = useState('')
+  const [verifying, setVerifying] = useState(false)
+  const [verifyError, setVerifyError] = useState(null)
+
+  // Booking state
   const dates = getNextDates()
   const [selectedDate, setSelectedDate] = useState(dates[0].date)
   const [slots, setSlots] = useState([])
@@ -14,15 +22,72 @@ function ClientBooking() {
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState(null)
 
+  // Check if client was previously verified (session storage)
   useEffect(() => {
-    loadSlots()
+    const savedClient = sessionStorage.getItem('verified_client')
+    if (savedClient) {
+      try {
+        const client = JSON.parse(savedClient)
+        // Re-verify to check if still active
+        verifyClientByPhone(client.phone).then(result => {
+          if (result.success) {
+            setVerifiedClient(result.client)
+            setIsVerified(true)
+          } else {
+            sessionStorage.removeItem('verified_client')
+          }
+        })
+      } catch (e) {
+        sessionStorage.removeItem('verified_client')
+      }
+    }
   }, [])
 
   useEffect(() => {
-    if (slots.length > 0) {
+    if (isVerified) {
+      loadSlots()
+    }
+  }, [isVerified])
+
+  useEffect(() => {
+    if (isVerified && slots.length > 0) {
       loadSlotData()
     }
-  }, [selectedDate, slots])
+  }, [selectedDate, slots, isVerified])
+
+  async function handleVerify(e) {
+    e.preventDefault()
+    if (!verifyPhone.trim()) {
+      setVerifyError('Please enter your phone number')
+      return
+    }
+
+    setVerifying(true)
+    setVerifyError(null)
+
+    const result = await verifyClientByPhone(verifyPhone.trim())
+
+    setVerifying(false)
+
+    if (result.success) {
+      setVerifiedClient(result.client)
+      setIsVerified(true)
+      sessionStorage.setItem('verified_client', JSON.stringify(result.client))
+    } else if (result.error === 'not_found') {
+      setVerifyError('Phone number not registered. Please contact your trainer to register.')
+    } else if (result.error === 'expired') {
+      setVerifyError(`Your membership expired ${Math.abs(getDaysRemaining(result.client.end_date))} days ago. Please contact your trainer to renew.`)
+    } else {
+      setVerifyError('Verification failed. Please try again.')
+    }
+  }
+
+  function handleLogout() {
+    sessionStorage.removeItem('verified_client')
+    setIsVerified(false)
+    setVerifiedClient(null)
+    setVerifyPhone('')
+  }
 
   async function loadSlots() {
     const slotsData = await getSlots()
@@ -58,7 +123,12 @@ function ClientBooking() {
 
   function openBookingModal(slot) {
     setBookingSlot(slot)
-    setFormData({ name: '', phone: '', email: '' })
+    // Pre-fill with client data
+    setFormData({
+      name: verifiedClient?.name || '',
+      phone: verifiedClient?.phone || '',
+      email: verifiedClient?.email || ''
+    })
     setSuccess(false)
     setError(null)
   }
@@ -105,14 +175,74 @@ function ClientBooking() {
   const selectedDateInfo = dates.find(d => d.date === selectedDate)
   const isDayBlocked = blockedSlots.some(b => b.slot_id === null)
 
+  // Show verification screen if not verified
+  if (!isVerified) {
+    return (
+      <div>
+        <div className="page-title-section">
+          <h1 className="page-title">Welcome to FIT2FLY</h1>
+          <p className="page-subtitle">Enter your registered phone number to book slots</p>
+        </div>
+
+        <div className="container">
+          <div className="verify-card">
+            <div className="verify-icon">📱</div>
+            <h2 className="verify-title">Member Login</h2>
+            <p className="verify-subtitle">Enter the phone number you registered with</p>
+
+            <form onSubmit={handleVerify}>
+              <div className="form-group">
+                <input
+                  type="tel"
+                  className="form-input verify-input"
+                  placeholder="Enter your phone number"
+                  value={verifyPhone}
+                  onChange={e => setVerifyPhone(e.target.value)}
+                  autoFocus
+                />
+              </div>
+
+              {verifyError && (
+                <div className="verify-error">
+                  {verifyError}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                className="btn-verify"
+                disabled={verifying}
+              >
+                {verifying ? 'Verifying...' : 'Continue'}
+              </button>
+            </form>
+
+            <p className="verify-help">
+              Not a member? Contact trainer Murali to register.
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Show booking page if verified
   return (
     <div>
       <div className="page-title-section">
         <h1 className="page-title">Book Your Slot</h1>
-        <p className="page-subtitle">Select a date and time that works for you</p>
+        <p className="page-subtitle">
+          Welcome back, <span style={{ color: 'var(--accent-red)' }}>{verifiedClient?.name}</span>!
+          <button className="logout-link" onClick={handleLogout}>Switch Account</button>
+        </p>
       </div>
 
       <div className="container">
+        <div className="membership-banner">
+          <span>Your membership is active</span>
+          <span className="membership-days">{getDaysRemaining(verifiedClient?.end_date)} days left</span>
+        </div>
+
         <div className="date-selector">
           {dates.map(d => (
             <button
@@ -219,6 +349,8 @@ function ClientBooking() {
                       placeholder="Enter your phone number"
                       value={formData.phone}
                       onChange={e => setFormData({ ...formData, phone: e.target.value })}
+                      readOnly
+                      style={{ opacity: 0.7 }}
                     />
                   </div>
 
