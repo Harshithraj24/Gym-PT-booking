@@ -847,6 +847,21 @@ h1, h2, h3, h4, h5, h6 {
   font-size: 0.95rem;
 }
 
+.block-form-group input[type="date"] {
+  cursor: pointer;
+  color-scheme: dark;
+}
+
+.block-form-group input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  filter: invert(1);
+  opacity: 0.7;
+}
+
+.block-form-group input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+}
+
 .block-form-group input:focus,
 .block-form-group select:focus {
   outline: none;
